@@ -1,0 +1,315 @@
+--[[
+    FlyHub Toolbox - Final Version (No Key & Fixed Icon Logo)
+]]
+
+-- Load NextUI
+local SuccessUI, NextUI = pcall(function()
+    return loadstring(game:HttpGet("https://diser.me/nextui/source.lua"))()
+end)
+
+if not SuccessUI or not NextUI then
+    warn("Gagal memuat NextUI.")
+    return
+end
+
+-- ================== KONFIGURASI ASET ==================
+local CustomAssets = {
+    Logo = "rbxassetid://109803428097841",
+    Background = "rbxassetid://136112125064049",
+    OpenClose = "rbxassetid://109803428097841",
+}
+
+-- ================== FUNGSI UTAMA (LANGSUNG TERBUKA) ==================
+local Window = NextUI:CreateWindow({
+    Title = "FlyHub",
+    SubTitle = "Toolbox",
+    Icon = CustomAssets.Logo,
+    Theme = "Amethyst",
+    Size = Vector2.new(780, 540),
+    Glass = false,
+    ToggleKeys = { Enum.KeyCode.Insert, Enum.KeyCode.RightShift },
+    MobileButton = false,
+    BackgroundImage = {
+        Id = CustomAssets.Background,
+        Active = true,
+    },
+    FloatButton = {
+        Shape = "Circle",
+        Color = "Black",
+        Size = 52,
+        Icon = CustomAssets.OpenClose,
+    }
+})
+
+-- Tombol FLY (Draggable) Tambahan
+local CoreGui = game:GetService("CoreGui")
+local UIS = game:GetService("UserInputService")
+
+pcall(function()
+    if CoreGui:FindFirstChild("FlyHubButton") then
+        CoreGui.FlyHubButton:Destroy()
+    end
+end)
+
+local ButtonGui = Instance.new("ScreenGui")
+ButtonGui.Name = "FlyHubButton"
+ButtonGui.ResetOnSpawn = false
+ButtonGui.Parent = CoreGui
+
+local FlyBtn = Instance.new("TextButton")
+FlyBtn.Size = UDim2.new(0, 70, 0, 70)
+FlyBtn.Position = UDim2.new(1, -90, 0.4, 0)
+FlyBtn.BackgroundColor3 = Color3.fromRGB(130, 70, 255)
+FlyBtn.Text = "FLY"
+FlyBtn.Font = Enum.Font.GothamBold
+FlyBtn.TextSize = 18
+FlyBtn.TextColor3 = Color3.new(1, 1, 1)
+FlyBtn.AutoButtonColor = false
+FlyBtn.Parent = ButtonGui
+Instance.new("UICorner", FlyBtn).CornerRadius = UDim.new(1, 0)
+
+local dragging, dragStart, startPos
+FlyBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FlyBtn.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        FlyBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local UIVisible = true
+FlyBtn.MouseButton1Click:Connect(function()
+    UIVisible = not UIVisible
+    pcall(function() Window:Toggle(UIVisible) end)
+end)
+
+--==================== LOAD FUNCTIONS ====================--
+local InsertService = game:GetService("InsertService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function PlaceInFront(obj)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    pcall(function()
+        if obj:IsA("Model") then
+            obj:PivotTo(hrp.CFrame * CFrame.new(0, 0, -14))
+        elseif obj:IsA("BasePart") then
+            obj.CFrame = hrp.CFrame * CFrame.new(0, 0, -14)
+        end
+    end)
+end
+
+local function LoadAsset(id, name)
+    id = tonumber(tostring(id):match("%d+"))
+    if not id then
+        NextUI:Error("Error", "ID tidak valid")
+        return
+    end
+
+    local ok1, result1 = pcall(function()
+        return InsertService:LoadAsset(id)
+    end)
+
+    if ok1 and result1 then
+        result1.Name = name or ("Asset_" .. id)
+        result1.Parent = workspace
+        PlaceInFront(result1)
+        NextUI:Success("Berhasil", (name or id) .. " (Metode 1)")
+        return
+    end
+
+    local ok2, result2 = pcall(function()
+        return game:GetObjects("rbxassetid://" .. id)
+    end)
+
+    if ok2 and result2 and #result2 > 0 then
+        for _, obj in ipairs(result2) do
+            obj.Name = name or ("Asset_" .. id)
+            obj.Parent = workspace
+            PlaceInFront(obj)
+        end
+        NextUI:Success("Berhasil", (name or id) .. " (Metode 2)")
+        return
+    end
+
+    NextUI:Error("Gagal", "ID " .. id .. " tidak bisa di-load.")
+end
+
+local function LoadLocalFile(fileName)
+    if not fileName or fileName == "" then
+        NextUI:Error("Error", "Nama file tidak boleh kosong!")
+        return
+    end
+
+    if not fileName:match("%.rbxm$") and not fileName:match("%.rbxl$") then
+        fileName = fileName .. ".rbxm"
+    end
+
+    local success, result = pcall(function()
+        if readfile and isfile and isfile(fileName) then
+            local objects = game:GetObjects(getcustomasset and getcustomasset(fileName) or ("rbxassetid://"))
+            if objects and #objects > 0 then
+                for _, obj in ipairs(objects) do
+                    obj.Parent = workspace
+                    PlaceInFront(obj)
+                end
+                return true
+            end
+        end
+        return false
+    end)
+
+    if success and result then
+        NextUI:Success("Berhasil", "File " .. fileName .. " berhasil dimuat!")
+    else
+        local successLoad, loadedModel = pcall(function()
+            return InsertService:LoadLocalAsset(fileName)
+        end)
+        
+        if successLoad and loadedModel then
+            loadedModel.Parent = workspace
+            PlaceInFront(loadedModel)
+            NextUI:Success("Berhasil", "File " .. fileName .. " berhasil dimuat!")
+        else
+            NextUI:Error("Gagal Load", "Taruh file di folder workspace eksekutor & pastikan format benar.")
+        end
+    end
+end
+
+--==================== DATA ====================--
+local TrendingList = {
+    {Name = "Steal An Egg", ID = 106206596734864},
+    {Name = "Day Night Cycle", ID = 74063745296318},
+    {Name = "RetroClassic Stud Part", ID = 117928611192026},
+    {Name = "Premium Health Bar", ID = 96150583459141},
+    {Name = "Sistema Menu Tomiasz", ID = 84828163072141},
+    {Name = "Official NDC Build Kit", ID = 11886415505},
+    {Name = "Stud Materials PBR", ID = 11120912366},
+    {Name = "Anime Sky", ID = 72835926026092},
+    {Name = "Simple Sunset Sky", ID = 82796424171704},
+}
+
+local ScriptList = {
+    {Name = "UI Animation Pack", ID = 94938590371879},
+    {Name = "TopbarPlus", ID = 92368439343389},
+    {Name = "Event Timer", ID = 85190209566737},
+    {Name = "NPC Dialogue System", ID = 80608769509945},
+    {Name = "Brainrot Pack 150", ID = 137461628889541},
+    {Name = "LikeGoal Sign", ID = 136183592743796},
+    {Name = "Easy Plot System", ID = 116182053991494},
+    {Name = "Clothing Panel", ID = 9618801038},
+    {Name = "HD Admin", ID = 857927023},
+}
+
+local MeshList = {
+    {Name = "Yasus Tree Pack", ID = 79689531752352},
+    {Name = "NDC Build Kit", ID = 11886415505},
+    {Name = "Tropical PBR Plants", ID = 9501994254},
+    {Name = "Realistic Tree", ID = 10131972958},
+    {Name = "Gun Meshes", ID = 14945323432},
+    {Name = "Forsaken Rig Pack", ID = 88244124928470},
+    {Name = "Light Explosion VFX", ID = 108812638060941},
+}
+
+local GameplayList = {
+    {Name = "ASMR Pack", ID = 82675357873034},
+    {Name = "KIT Escape Teclado", ID = 74456202552253},
+    {Name = "Shop System", ID = 136447067919611},
+    {Name = "Daily Rewards", ID = 140274253476091},
+    {Name = "Notification System", ID = 111314216932826},
+    {Name = "Admin Panel Modular", ID = 134884376004032},
+}
+
+--==================== UI SETUP ====================--
+Window:AddCategory("Toolbox")
+
+local function MakeTab(name, icon, list)
+    local tab = Window:AddTab(name, icon)
+    local sec = tab:AddSection({ Title = name, Icon = icon, Side = "Full" })
+    for _, v in ipairs(list) do
+        sec:AddButton({
+            Title = v.Name,
+            Description = "ID: " .. v.ID,
+            Callback = function()
+                LoadAsset(v.ID, v.Name)
+            end
+        })
+    end
+end
+
+MakeTab("Trending", "flame", TrendingList)
+MakeTab("Script", "code", ScriptList)
+MakeTab("MeshPart", "box", MeshList)
+MakeTab("Gameplay", "gamepad", GameplayList)
+
+local Imp = Window:AddTab("Import", "download")
+local ImpSec = Imp:AddSection({ Title = "Import ID Manual", Icon = "download", Side = "Full" })
+
+local IdBox = ImpSec:AddTextbox({
+    Title = "Asset ID",
+    Placeholder = "Tempel ID di sini",
+    Default = "",
+    Flag = "id"
+})
+
+ImpSec:AddButton({
+    Title = "▶ Import ID",
+    Callback = function()
+        LoadAsset(IdBox:Get(), "Manual")
+    end
+})
+
+local FileSec = Imp:AddSection({ Title = "Upload / Load File .rbxm & .rbxl", Icon = "file", Side = "Full" })
+
+FileSec:AddButton({
+    Title = "📁 Cara Masukkan File",
+    Callback = function()
+        NextUI:Success("Info Panduan", "Taruh file .rbxm kamu ke dalam folder 'workspace' di direktori eksekutor kamu, lalu ketik namanya di bawah!")
+    end
+})
+
+local FileBox = FileSec:AddTextbox({
+    Title = "Nama File .rbxm",
+    Placeholder = "Contoh: modelku.rbxm",
+    Default = "",
+    Flag = "filename"
+})
+
+FileSec:AddButton({
+    Title = "▶ Load File Lokal",
+    Callback = function()
+        LoadLocalFile(FileBox:Get())
+    end
+})
+
+FileSec:AddButton({
+    Title = "Infinite Yield",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+        end)
+        NextUI:Success("IY", "Infinite Yield dicoba load")
+    end
+})
+
+local Set = Window:AddTab("Settings", "settings")
+local Th = Set:AddSection({ Title = "Theme", Icon = "palette" })
+Th:AddDropdown({
+    Title = "Theme",
+    Values = {"Rose","Crimson","Onyx","Dark","Darker","Amethyst","Emerald","Lagoon","Noir"},
+    Default = "Amethyst",
+    Callback = function(t) pcall(function() NextUI:SetTheme(t) end) end
+})
+
+NextUI:Success("FlyHub", "Toolbox siap digunakan!")
